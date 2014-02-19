@@ -1,0 +1,45 @@
+Manuel Ignacio Castillo López; 3-0801743-8
+Mijail Gutiérrez Valdéz; 3-423250-3.
+
+MEMO DEL PROTOCOLO HTTP
+
+Éste documento contiene un memorandum; resumido a mayor posibilidad, de la
+descripción del protocolo HTTP 1.0, de acuerdo a la documentación que podemos
+encontrar en http://www.w3.org/Protocols/HTTP/1.0/spec#Protocol-Parameters
+
+Es importante considerar que el documento citado es volatil y podría ser
+diferente al consultado al escribir éste memorandum el día martes 18 de febrero
+del 2014.
+
+FORMATO DE VERSIONES DE HTTP
+HTTP/[0-9].[0-9].
+Nos interesa HTTP/1.0
+
+Las URI en HTTP -Uniform Resource Identifier; una cadena de caracteres que
+identifica inequívocamente un recurso- se forman con la siguiente gramática en
+BNF aumentado:
+URI ::= ABSOLUTE-URI | RELATIVE-URI | "#" FRAGMENT
+ABSOLUTE-URI ::= SCHEME ":" (UCHAR | RESERVED)*
+RELATIVE-URI ::= NET-PATH | ABS-PATH | REL-PATH
+NET-PATH ::= "//" NET-LOC (ABS-PATH)*
+ABS-PATH ::= "/" REL-PATH
+REL-PATH ::= PATH ";" PARAMS "?" QUERY
+PATH ::= FSEGMENT ("/" SEGMENT)*
+FSEGMENT ::= 1 (PCHAR)*
+SEGMENT ::= PCHAR*
+PARAMS ::= PARAM (";" PARAM)*
+PARAM ::= (PCHAR | "/")*
+SCHEME ::= 1 ([A-Z,a-Z] | [0-9] | "+" | "-" | ".")*
+NET-LOC := (PCHAR | ";" | "?")*
+QUERY ::= (UCHAR | RESERVED)*
+FRAGMENT ::= (UCHAR | RESERVED)*
+PCHAR ::= UCHAR | ":" | "@" | "&" | "=" | "+"
+UCHAR ::= UNSERVED | ESCAPE
+UNRESERVED ::= [A-Z,a-z] | [0-9] | SAFE | EXTRA
+ESCAPE ::= "%" HEX HEX
+RESERVED ::= ";" | "/" | "?" | ":" | "@" | "&" | "=" | "+"
+EXTRA ::= "!" | "*" | "'" | "(" | ")" | ","
+SAFE ::= "$" | "-" | "_" | "."
+UNSAFE ::= "#" | "%" | "<" | ">" | "
+HEX ::= [a-f]*[0-9]* HEX
+
