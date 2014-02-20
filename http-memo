@@ -12,7 +12,7 @@ diferente al consultado al escribir éste memorandum el día martes 18 de febrer
 del 2014.
 
 Definiciones preliminares:
-CRLD ::= CR LF
+CRLF ::= CR LF
 CR ::= <retorno de carro>
 LF ::= <salto de línea>
 LWS ::= <línea en blanco>
