@@ -15,6 +15,12 @@ main.o :
 	$(CC) $(CFLAGS) $(G) src/main.c -o lib/main.o
 # TODO insert makefile tasks
 
+client : http_client.o
+	$(CC) $(G) lib/http_client.o -o bin/client
+
+http_client.o :
+	$(CC) $(CFLAGS) $(G) src/http_client.c -o lib/http_client.o
+
 clean :
 	rm -f bin/*
 
