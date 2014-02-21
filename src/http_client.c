@@ -42,9 +42,9 @@ int main(int argc, char *argv[])
 	{
 		printf("Invoque el programa pasando como argumentos el m\u00E9todo, ");
 		printf("host deseado, la p\u00E1gina que desea consultar del ");
-		printf("mismo y un posible query para pasar por GET.\nPor ejemplo: ");
-		printf("client GET www.google.com / search=nachintoch\nPuede omitir ");
-		printf("la p\u00E1gina y el query.\n");
+		printf("mismo y un posible query para pasar por GET \u00F3 POST.\n");
+		printf("Por ejemplo: client GET google.com /search ");
+		printf("q=nachintoch\nPuede omitir la p\u00E1gina y el query.\n");
 		exit(EXIT_FAILURE);
 	}//comprueba que se le hayan dado argumentos de consola
 	if(strcmp(argv[1], GET) != 0 && strcmp(argv[1], HEAD) != 0 &&
@@ -55,10 +55,10 @@ int main(int argc, char *argv[])
 		exit(EXIT_FAILURE);
 	}//comprueba que se le haya dado un método de HTTP/1.0 válido
 	char *getq;
-	if(argc > 4 && strcmp(argv[1], GET) != 0)
+	if(argc > 4 && (strcmp(argv[1], GET) != 0 && strcmp(argv[1], POST) != 0))
 	{
 		printf("Un query s\u00F3lo deber\u00EDa usarse con el m\u00E9todo ");
-		printf("GET");
+		printf("GET \u00F3 POST");
 		exit(EXIT_FAILURE);
 	}
 	else if(argc > 4)
@@ -170,7 +170,6 @@ int main(int argc, char *argv[])
 		if(content)
 		{
 			content += 10;
-			printf("content=%s\n", content);
 			args[0] = "./bin/client";
 			args[1] = "GET";
 			if(tolower(content[0]) != 'h' || tolower(content[1]) != 't' ||
@@ -183,30 +182,53 @@ int main(int argc, char *argv[])
 			}//comprueba que el potocolo de redireccionamiento
 			char *newq = malloc(sizeof(char *) *strlen(content));
 			newq = strtok(content, "\n");
-			strtok(newq, "//");
-			newq = strtok(newq, "/");
-			args[2] = malloc(sizeof(char *) *(strlen(newq)));
-			memset(args[2], 0, strlen(newq));
-			strcat(args[2], newq);
-			newq = strtok(newq, "\n");
+			newq += 7;
+			char *addrs = malloc(sizeof(char *) *strlen(newq));
+			strcpy(addrs, newq);
+			addrs = strtok(addrs, "/");
+			args[2] = malloc(sizeof(char *) *(strlen(addrs)));
+			memset(args[2], 0, strlen(addrs));
+			strcat(args[2], addrs);
+			newq += strlen(addrs);
+			addrs = strtok(newq, "?");
 			args[3] = malloc(sizeof(char *) *(strlen(newq) +1));
-			memset(args[3], 0, strlen(newq));
-			strcat(args[3], "/");
-			strcat(args[3], newq);
+			memset(args[3], 0, strlen(addrs));
+			strcat(args[3], addrs);
+			newq += strlen(addrs);
 			if(argc == 5)
 			{
-				args[4] = argv[4];
+				if(newq != NULL)
+				{
+					args[4] = malloc(sizeof(char *) *(strlen(argv[4])
+						+strlen(newq) +1));
+					memset(args[4], 0, strlen(argv[4]) + strlen(newq) +1);
+					newq++;
+					strcat(args[4], argv[4]);
+					strcat(args[4], "&");
+					strcat(args[4], newq);
+				}
+				else
+				{
+					args[4] = malloc(sizeof(char *) *strlen(argv[4]));
+					memset(args[4], 0, strlen(argv[4]));
+					strcat(args[4], argv[4]);
+				}//asigna un query para get
 			}
 			else
 			{
-				args[4] = "";
+				if(newq != NULL)
+				{
+					args[4] = malloc(sizeof(char *) *strlen(newq));
+					memset(args[4], 0, strlen(newq));
+					strcat(args[4], newq);
+				}
+				else
+				{
+					args[4] = "";
+				}//asigna el query para get
 			}//toma el query
-			printf("args[0]=%s\n", args[0]);
-			printf("args[1]=%s\n", args[1]);
-			printf("args[2]=%s\n", args[2]);
-			printf("args[3]=%s\n", args[3]);
-			printf("args[4]=%s\n", args[4]);
-			execvp(args[0], args);
+			printf("\n\n");
+			execvp(args[0], args);//se reinvoca con argumentos dispuestos a redireccionar
 		}
 		else
 		{
@@ -273,14 +295,30 @@ char *build_query(char *method, char *host, char *page, char *getquery)
 {
 	char *query;
 	char *getpage = page;
-	char *tpl = "%s /%s%s HTTP/1.0\r\nHost: %s\r\nUser-Agent: %s\r\n\r\n";
+	char *tpl = "%s /%s%s HTTP/1.0\r\nHost: %s\r\nUser-Agent: %s\r\nContent-Length: %s\r\n\r\n%s\r\n\r\n";
 	if(getpage[0] == '/')
 	{
 		getpage = getpage +1;
 	}//prepara el encabezado
 	query = (char *) malloc(strlen(method) +strlen(host) +strlen(getpage)
 		+strlen(getquery) +strlen(USERAGENT) + strlen(tpl) -6);
-	sprintf(query, tpl, method, getpage, getquery, host, USERAGENT);
+	char *empty = "";
+	char len[15];
+	if(strcmp(method, GET) == 0)
+	{
+		sprintf(len, "%d", 0);
+		sprintf(query, tpl, method, getpage, getquery, host, USERAGENT, len, empty);
+	}
+	else if(strcmp(method, POST) == 0)
+	{
+		sprintf(len, "%d", strlen(getquery));
+		sprintf(query, tpl, method, getpage, empty, host, USERAGENT, len, getquery);
+	}
+	else
+	{
+		sprintf(len, "%d", 0);
+		sprintf(query, tpl, method, getpage, empty, host, USERAGENT, len, empty);
+	}//crea el query dependiendo el método
 	return query;
 }//build_query
 
