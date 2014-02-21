@@ -30,3 +30,6 @@ cleanall :
 exec :
 	bin/tarea-lab4
 
+http_server.o :
+	$(CC) $(CFLAGS) $(G) src/http_server.c -o lib/http_server.o
+
