@@ -5,6 +5,7 @@
 #include <netdb.h>
 #include <unistd.h>
 #include <string.h>
+#include <ctype.h>
 #define USERAGENT "NACHINTOCH-HTTPCLIENT 1.0"
 #define GET "GET"
 #define HEAD "HEAD"
@@ -21,10 +22,15 @@
  */
 
 //prototipos de funciones
-int create_socket();
-char *get_ip(char *);
+void create_socket();
+void get_ip(char *);
 char *build_query(char *, char *, char *, char *);
 void die();
+
+// variables globales
+int sock;
+char *ip, *get;
+struct sockaddr_in *remote;
 
 /*
  * Ejecuta el cliente de HTTP haciendo un request a la página dada como
@@ -66,9 +72,7 @@ int main(int argc, char *argv[])
 	{
 		getq = "";
 	}//si se pasó un méotodo que no es get con un query
-	struct sockaddr_in *remote;
-	int sock, n;
-	char *ip, *get;
+	int n;
 	char buffer[BUFSIZ +1];
 	char *host = argv[2];
 	char *page;
@@ -80,8 +84,8 @@ int main(int argc, char *argv[])
 	{
 		page = "/";
 	}//obtiene la página que se desea visitar
-	sock = create_socket();
-	ip = get_ip(host);
+	create_socket();
+	get_ip(host);
 	remote = (struct sockaddr *) malloc(sizeof(struct sockaddr_in));
 	remote -> sin_family = AF_INET;
 	n = inet_pton(AF_INET, ip, (void *) (&(remote -> sin_addr.s_addr)));
@@ -129,42 +133,102 @@ int main(int argc, char *argv[])
 			{
 				head[i] = buffer[i];
 			}//copia el encabezado del flujo
+			printf("Encabezado:\n\n%s\n\n", head);
 			content = strstr(buffer, "\r\n\r\n");
 			if(content)
 			{
 				content += 4;
 			}//si se encontró la subcadena
+			printf("Mensaje:\n\n");
 			data = 1;
 		}//si no se ha recuperado el encabezado
 		fprintf(stdout, content);
 		memset(buffer, 0, n);
 	}//recupera los datos recibidos por el server
-	if(head[0] != 'H' || head[1] != 'T' || head[2] != 'T' || head[3] != 'P')
+	if(head[0] != 'H' || head[1] != 'T' || head[2] != 'T' || head[3] != 'P' ||
+		head[4] != '/')
 	{
 		printf("No se reconoce el protoclo de respuesta\n");
-		die();
-	} if(head[4] != '/')
-	{
-		printf("La respuesta HTTP cotiene una expresi\u00F3n mal formada\n");
 		die();
 	} if((head[5] -48 > 1) && (head[6] != '.') && (head[7] -48 != 0
 		|| head[7] -48 != 9))
 	{
 		printf("No se reconoce la versi\u00F3n de HTTP de respuesta\n");
 		die();
-	} switch(head[9]) {
+	}
+	char *args[5];
+	switch(head[9]) {
 	case '1' :
+		//informativo, se ignora
 		break;
 	case '2' :
+		//conección correcta, se ignora
 		break;
 	case '3' :
+		//redireccionamiento. Tomamos el Location:
+		content = strstr(head, "Location: ");
+		if(content)
+		{
+			content += 10;
+			printf("content=%s\n", content);
+			args[0] = "./bin/client";
+			args[1] = "GET";
+			if(tolower(content[0]) != 'h' || tolower(content[1]) != 't' ||
+				tolower(content[2]) != 't' || tolower(content[3]) != 'p' ||
+				tolower(content[4]) != ':' || tolower(content[5]) != '/' ||
+				tolower(content[6]) != '/')
+			{
+				printf("No se reconoce el protocolo de redireccionamiento.\n");
+				die();
+			}//comprueba que el potocolo de redireccionamiento
+			char *newq = malloc(sizeof(char *) *strlen(content));
+			newq = strtok(content, "\n");
+			strtok(newq, "//");
+			newq = strtok(newq, "/");
+			args[2] = malloc(sizeof(char *) *(strlen(newq)));
+			memset(args[2], 0, strlen(newq));
+			strcat(args[2], newq);
+			newq = strtok(newq, "\n");
+			args[3] = malloc(sizeof(char *) *(strlen(newq) +1));
+			memset(args[3], 0, strlen(newq));
+			strcat(args[3], "/");
+			strcat(args[3], newq);
+			if(argc == 5)
+			{
+				args[4] = argv[4];
+			}
+			else
+			{
+				args[4] = "";
+			}//toma el query
+			printf("args[0]=%s\n", args[0]);
+			printf("args[1]=%s\n", args[1]);
+			printf("args[2]=%s\n", args[2]);
+			printf("args[3]=%s\n", args[3]);
+			printf("args[4]=%s\n", args[4]);
+			execvp(args[0], args);
+		}
+		else
+		{
+			printf("El servidor indic\u00F3 un redireccionamiento, pero no ");
+			printf("especific\u00F3 una direcci\u00F3n a redireccionar\n");
+			die();
+		}//comprueba que se haya porporcionado un
 		break;
 	case '4' :
+		content = strtok(content, "\n");
+		printf("Error 4xx: \"%s\"\n", content);
+		die();
 		break;
 	case '5' :
+		content = strtok(content, "\n");
+		printf("Error 5xx: \"%s\"\n", content);
+		die();
 		break;
 	default :
-	}
+		printf("No se reconoce el c\u00F3digo de respuesta.\n");
+		die();
+	}//dependiendo el código de respuesta
 	if(n < 0)
 	{
 		perror("Error al recuperar los datos");
@@ -177,23 +241,21 @@ int main(int argc, char *argv[])
 }//main
 
 // crea un socket de TCP
-int create_socket()
+void create_socket()
 {
-	int sock;
 	if((sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0)
 	{
 		perror("Error al crear el socket");
 		exit(EXIT_FAILURE);
 	}//comprueba que se haya creado el socket
-	return sock;
 }//create_socket
 
 // obtiene una IP del nombre del servicio dado
-char *get_ip(char *host)
+void get_ip(char *host)
 {
 	struct hostent *hent;
 	int iplen = 15;
-	char *ip = (char *) malloc(iplen +1);
+	ip = (char *) malloc(iplen +1);
 	memset(ip, 0, iplen +1);
 	if((hent = gethostbyname(host)) == NULL)
 	{
@@ -204,7 +266,6 @@ char *get_ip(char *host)
 		perror("No es posible resolver el nombre de servicio dado");
 		exit(EXIT_FAILURE);
 	}//obitne la IP del servicio
-	return ip;
 }//get_ip
 
 //construye una consulta al server
