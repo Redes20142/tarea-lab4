@@ -122,17 +122,25 @@ int main(int argc, char *argv[])
 	char *content;
 	char *head;
 	unsigned short int i;
+	unsigned int headlen = 0;
 	while((n = recv(sock, buffer, BUFSIZ, 0)) > 0)
 	{
 		content = buffer;
 		if(!data)
 		{
-			head = malloc(sizeof(char *) *strlen(buffer));
-			for(i = 0; buffer[i] != '\r' || buffer[i +1] != '\n' ||
-				buffer[i +2] != '\r' || buffer[i +3] != '\n'; i++)
+			headlen = strlen(buffer);
+			head = malloc(sizeof(char *) *headlen);
+			for(i = 0; (i < headlen) && (buffer[i] != '\r' ||
+				buffer[i +1] != '\n' || buffer[i +2] != '\r' ||
+				buffer[i +3] != '\n'); i++)
 			{
 				head[i] = buffer[i];
 			}//copia el encabezado del flujo
+			if(i >= headlen)
+			{
+				printf("El servidor respondio con un encabezado inv\u00E1lido\n");
+				die();
+			}//si el encabezado no es válido
 			printf("Encabezado:\n\n%s\n\n", head);
 			content = strstr(buffer, "\r\n\r\n");
 			if(content)

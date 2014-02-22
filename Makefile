@@ -7,7 +7,7 @@ CFLAGS = -c -Wall -x c -I ./include/ -O2 -ffunction-sections -fdata-sections -fu
 
 all : build
 
-build : main.o
+build : main.o client server
 	$(CC) $(G) lib/main.o -o bin/tarea-lab4 # TODO add tags for all necesary libs to make the main
 	chmod 774 bin/tarea-lab4
 
@@ -32,4 +32,7 @@ exec :
 
 http_server.o :
 	$(CC) $(CFLAGS) $(G) src/http_server.c -o lib/http_server.o
+
+server : http_server.o
+	$(CC) $(G) lib/http_server.o -o bin/server
 
