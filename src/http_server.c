@@ -172,6 +172,7 @@ void connection(int fd)
 {
 	char *request, resource[512], *ptr, buffer[512], *bufferc;
 	char *getquery, *size;
+	unsigned int i, state;
 	if(recv_new(fd, buffer) == 0)
 	{
 		send_new(fd, "HTTP/1.0 500 Internal error\r\n");
@@ -231,7 +232,7 @@ void connection(int fd)
 			{
 				getquery = malloc(sizeof(char *) *strlen(ptr));
 				memset(getquery, 0, strlen(ptr));
-				char *aux;// = malloc(sizeof(char *) *strlen(ptr));
+				char *aux;
 				aux = strtok(ptr, "/");
 				if(aux != NULL)
 				{
@@ -311,20 +312,33 @@ void connection(int fd)
 			//solicito HEAD, pero el header ya ha sido enviado. No queda más que hacer
 			break;
 		case 3 :
-			size = strstr(buffer, CONTENTLENGTH);
-			if(size != NULL) 
+			memset(bufferc, 0, strlen(buffer));
+			strcat(bufferc, buffer);
+			for(state = 0; bufferc[0] != 'C' || bufferc[1] != 'o' ||
+				bufferc[2] != 'n' || bufferc[3] != 't' ||
+				bufferc[4] != 'e' || bufferc[5] != 'n' ||
+				bufferc[6] != 't' || bufferc[7] != '-' ||
+				bufferc[8] != 'L' || bufferc[9] != 'e' ||
+				bufferc[10] != 'n' || bufferc[11] != 'g' ||
+				bufferc[12] != 't' || bufferc[13] != 'h' ||
+				bufferc[14] != ':' || bufferc[15] != ' '; bufferc++)
 			{
-				size += 16;
-				size = strtok(size, EOM);
-				printf("El tama\u00F1o de los datos recibidos es: %s\n", size);
-			}
-			else
+				if(16 >= strlen(buffer))
+				{
+					state = 1;
+					break;
+				}//si se sale de la cadena
+			}//verifica que pueda continuar
+			if(state)
 			{
 				send_new(fd, "HTTP/1.0 400 No content length were given\r\n");
 				send_new(fd, "server: NACHINTOCH-HTTPSERVER\r\n\r\n");
 				close(fd);
 				return;
-			}
+			}//verfica que se haya dado un content-length
+			bufferc += 16;
+			size = strtok(bufferc, EOL);
+			printf("El tama\u00F1o de los datos recibidos es: %s\n", size);
 			bufferc = strstr(buffer, EOM);
 			bufferc += 4;
 			bufferc = strtok(bufferc, EOM);
