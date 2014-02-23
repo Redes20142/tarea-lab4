@@ -14,6 +14,7 @@
 #define EOM_SIZE 4
 #define EOL "\r\n"
 #define EOL_SIZE 2
+#define CONTENTLENGTH "Content-Length: "
 
 /*
  * Servidor de HTTP/1.0
@@ -149,13 +150,14 @@ int recv_new(int fd, char *buffer)
 			if(EOM_match == EOM_SIZE)
 			{
 				matches++;
+				EOM_match = 0;
 				if(matches == 2)
 				{
 					*(p +1 -EOM_SIZE) = '\0';
 					return (strlen(buffer));
 				}//si se encuentra 2 veces el final de línea
 			}//si se ha recibido el fin de línea
-		}
+		}	
 		else
 		{
 			EOM_match = 0;
@@ -169,7 +171,7 @@ int recv_new(int fd, char *buffer)
 void connection(int fd)
 {
 	char *request, resource[512], *ptr, buffer[512], *bufferc;
-	int fd1, length, req_type = 0;
+	char *getquery, *size;
 	if(recv_new(fd, buffer) == 0)
 	{
 		send_new(fd, "HTTP/1.0 500 Internal error\r\n");
@@ -177,10 +179,12 @@ void connection(int fd)
 		close(fd);
 		return;
 	}//toma el mensaje
-	//printf("buffer=%s\n", buffer);
+	int fd1, length, req_type = 0;
 	request = malloc(sizeof(char *) *strlen(buffer));
 	bufferc = malloc(sizeof(char *) *strlen(buffer));
+	size = malloc(sizeof(char *) *strlen(buffer));
 	memset(bufferc, 0, strlen(buffer));
+	memset(size, 0, strlen(buffer));
 	strcat(bufferc, buffer);
 	request = strtok(bufferc, "\r\n");
 	ptr = strstr(request, "HTTP/");
@@ -196,17 +200,26 @@ void connection(int fd)
 		*ptr = 0;
 		ptr = NULL;
 		unsigned short int aux = 1;
-		if(strncmp(request, "GET ", 4) == 0)
+		if(strlen(request) < 5)
+		{
+			send_new(fd, "HTTP/1.0 400 Invalid method\r\n");
+			send_new(fd, "server: NACHINTOCH-HTTPSERVER\r\n\r\n");
+			close(fd);
+			return;
+		}
+		if(request[0] == 'G' && request[1] == 'E' && request[2] == 'T')
 		{
 			ptr = request +4;
 			req_type = 1;
 		}
-		if(strncmp(request, "HEAD ", 5) == 0)
+		else if(request[0] == 'H' && request[1] == 'E' && request[2] == 'A' &&
+			request[3] == 'D')
 		{
 			ptr = request +5;
 			req_type = 2;
 		}
-		if(strncmp(request, "POST ", 5) == 0)
+		else if(request[0] == 'P' && request[1] == 'O' && request[2] == 'S' &&
+			request[3] == 'T')
 		{
 			ptr = request +5;
 			req_type = 3;
@@ -214,6 +227,24 @@ void connection(int fd)
 		if(req_type != 2)
 		{
 			ptr = strtok(ptr, " ");
+			if(req_type == 1)
+			{
+				getquery = malloc(sizeof(char *) *strlen(ptr));
+				memset(getquery, 0, strlen(ptr));
+				char *aux;// = malloc(sizeof(char *) *strlen(ptr));
+				aux = strtok(ptr, "/");
+				if(aux != NULL)
+				{
+					strcat(getquery, aux);
+					getquery++;
+				}
+				else
+				{
+					getquery = "";
+				}//si existe un query
+				
+				ptr = strtok(ptr, "?");
+			}
 			if(ptr[strlen(ptr) -1] == '/')
 			{
 				strcat(ptr, "index.html");
@@ -249,7 +280,6 @@ void connection(int fd)
 		}//envía error en su caso
 		switch(req_type) {
 		case 1 :
-			
 			if((length = get_file_size(fd1)) == -1)
 			{
 				send_new(fd, "HTTP/1.0 500 Internal error\r\n");
@@ -264,6 +294,10 @@ void connection(int fd)
 				close(fd);
 				return;
 			}//recupera el archivo y asigna espacio para la transmisión
+			if(strlen(getquery) > 0)
+			{
+				printf("Se recibieron par\u00E1metros en la direcci\u00F3n solicitada:\n%s\n\n", getquery);
+			}//muestra el query en caso de existir
 			read(fd1, ptr, length);
 			send_new(fd, "HTTP/1.0 200 OK\r\n");
 			send_new(fd, "server: NACHINTOCH-HTTPSERVER\r\n\r\n");
@@ -277,10 +311,28 @@ void connection(int fd)
 			//solicito HEAD, pero el header ya ha sido enviado. No queda más que hacer
 			break;
 		case 3 :
+			size = strstr(buffer, CONTENTLENGTH);
+			if(size != NULL) 
+			{
+				size += 16;
+				size = strtok(size, EOM);
+				printf("El tama\u00F1o de los datos recibidos es: %s\n", size);
+			}
+			else
+			{
+				send_new(fd, "HTTP/1.0 400 No content length were given\r\n");
+				send_new(fd, "server: NACHINTOCH-HTTPSERVER\r\n\r\n");
+				close(fd);
+				return;
+			}
 			bufferc = strstr(buffer, EOM);
-			bufferc += 5;
-			printf("Se recibieron los siguientes datos en POST:\n%s\n",
-				bufferc);
+			bufferc += 4;
+			bufferc = strtok(bufferc, EOM);
+			if(bufferc != NULL && atoi(size) != 0)
+			{
+				printf("Se recibieron los siguientes datos en POST:\n%s\n",
+					bufferc);
+			}//si se pasaron datos por post
 			if((length = get_file_size(fd1)) == -1)
 			{
 				send_new(fd, "HTTP/1.0 500 Internal error\r\n");
@@ -296,7 +348,14 @@ void connection(int fd)
 				return;
 			}//recupera el archivo y asigna espacio para la transmisión
 			read(fd1, ptr, length);
-			send_new(fd, "HTTP/1.0 200 OK\r\n");
+			if(atoi(size) == 0)
+			{
+				send_new(fd, "HTTP/1.0 204 OK, but no was content given\r\n");
+			}
+			else
+			{
+				send_new(fd, "HTTP/1.0 200 OK\r\n");
+			}//envía un sin contenido en su caso
 			send_new(fd, "server: NACHINTOCH-HTTPSERVER\r\n\r\n");
 			if(send(fd, ptr, length, 0) == -1)
 			{
@@ -313,6 +372,10 @@ void connection(int fd)
 		}//actua dependiendo el méotodo
 		close(fd);
 	}//recibe una petición
+	free(request);
+	free(bufferc);
+	free(size);
+	free(getquery);
 	shutdown(fd, SHUT_RDWR);
 }//conection
 

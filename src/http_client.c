@@ -153,6 +153,7 @@ int main(int argc, char *argv[])
 		fprintf(stdout, content);
 		memset(buffer, 0, n);
 	}//recupera los datos recibidos por el server
+	printf("\n");
 	if(head[0] != 'H' || head[1] != 'T' || head[2] != 'T' || head[3] != 'P' ||
 		head[4] != '/')
 	{
